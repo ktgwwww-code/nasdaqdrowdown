@@ -140,7 +140,13 @@ def level_for(drawdown: float) -> int:
 # --- Discord 通知 ----------------------------------------------------------
 
 def post_discord(webhook_url: str, content: str) -> None:
-    resp = requests.post(webhook_url, json={"content": content}, timeout=30)
+    # allowed_mentions で @everyone を有効化し、ミュート/通知設定を貫通させる。
+    # （暴落・監視死亡という「絶対に見逃せない」通知のみで使う）
+    payload = {
+        "content": content,
+        "allowed_mentions": {"parse": ["everyone"]},
+    }
+    resp = requests.post(webhook_url, json=payload, timeout=30)
     resp.raise_for_status()
 
 
@@ -148,6 +154,7 @@ def build_alert_message(all_time_high: float, current_price: float,
                         drawdown: float, level: int) -> str:
     act = ACTIONS[level]
     lines = [
+        "@everyone",
         "🔴 **NASDAQ100 ドローダウン警報**",
         "",
         f"史上最高値: {all_time_high:,.0f}",
@@ -166,6 +173,7 @@ def build_alert_message(all_time_high: float, current_price: float,
 
 def build_failure_message(fail_count: int) -> str:
     return (
+        "@everyone\n"
         "⚠️ **NASDAQ100 監視ツール 異常**\n\n"
         f"データ取得に {fail_count} 日連続で失敗しています。\n"
         "監視が機能していない可能性があります。GitHub Actions のログを確認してください。"
