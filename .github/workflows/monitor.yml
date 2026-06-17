@@ -1,0 +1,47 @@
+name: NASDAQ100 Drawdown Monitor
+
+on:
+  schedule:
+    # UTC 0:00 = 日本 9:00（米国前営業日の引け後）。実行日基準で火〜土。
+    # 終値が取れているかをテストして時刻は調整する。
+    - cron: "0 0 * * 2-6"
+  workflow_dispatch: {}  # 手動実行も可能にする
+
+permissions:
+  contents: write  # state.json をコミット＆プッシュするため
+
+concurrency:
+  group: ndx-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python monitor.py
+
+      - name: Commit state if changed
+        run: |
+          if [[ -n "$(git status --porcelain state.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state.json
+            git commit -m "chore: update state.json [skip ci]"
+            git push
+          else
+            echo "state.json に変更なし"
+          fi
