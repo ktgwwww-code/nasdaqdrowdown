@@ -189,9 +189,12 @@ def run() -> int:
     state = load_state()
 
     # --- データ取得（失敗時は通知せず正常終了。連続失敗のみ通知）§8 ---
+    # yfinance は不調時に RuntimeError 以外（TypeError / KeyError /
+    # JSONDecodeError / 接続エラー等）も投げる。ここで握りつぶさないと
+    # ワークフローが赤くなり、失敗通知も送られないので Exception で広く捕捉する。
     try:
         hist_high, current_price, last_date = fetch_ndx()
-    except RuntimeError as e:
+    except Exception as e:
         state["fail_count"] = int(state.get("fail_count", 0)) + 1
         state["last_run"] = today
         print(f"[error] データ取得失敗（{state['fail_count']}日連続）: {e}")
