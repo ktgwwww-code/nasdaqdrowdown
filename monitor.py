@@ -34,6 +34,10 @@ STATE_PATH = Path(__file__).with_name("state.json")
 # 取得失敗が何日連続したら「監視が死んでいる」と通知するか（§8）
 FAILURE_ALERT_THRESHOLD = 3
 
+# 何日ごとに「稼働中です」の生存報告を送るか。
+# 0 にすると生存報告を無効化できる。
+HEARTBEAT_INTERVAL_DAYS = 7
+
 # 閾値（下落率%）。判定は大きい順に行う。
 THRESHOLDS = [50, 40, 30, 25]
 
@@ -77,6 +81,7 @@ def default_state() -> dict:
         "last_price": None,
         "fail_count": 0,
         "fail_alerted": False,
+        "last_heartbeat": None,
     }
 
 
@@ -180,6 +185,18 @@ def build_failure_message(fail_count: int) -> str:
     )
 
 
+def build_heartbeat_message(all_time_high: float, current_price: float,
+                            drawdown: float) -> str:
+    """週1回の生存報告。@everyone は付けず静かに送る（ピコッと鳴らさない）。"""
+    return (
+        "🟢 **NASDAQ100 監視ツール 稼働中**\n\n"
+        f"史上最高値: {all_time_high:,.0f}\n"
+        f"現在値: {current_price:,.0f}\n"
+        f"下落率: −{drawdown:.1f}%\n\n"
+        "閾値（−25%）には未到達。問題なく監視できています。"
+    )
+
+
 def build_test_message() -> str:
     """通知疎通テスト用メッセージ。本番の警報と同じく @everyone を付け、
     ロック画面/ミュート貫通を確認できるようにする（暴落ではないと明記）。"""
@@ -280,6 +297,33 @@ def run() -> int:
 
     if not notified and level <= fired_level:
         print("[info] 新規発火なし（沈黙）")
+
+    # --- 週1回の生存報告（§設計外の運用補助）---
+    # 普段は無言なので「動いているか」を確認できるよう、HEARTBEAT_INTERVAL_DAYS
+    # ごとに稼働中メッセージを送る。警報を出した回は生存が自明なので送らない。
+    if HEARTBEAT_INTERVAL_DAYS > 0 and not notified:
+        last_hb = state.get("last_heartbeat")
+        due = True
+        if last_hb:
+            try:
+                days = (date.fromisoformat(today) - date.fromisoformat(last_hb)).days
+                due = days >= HEARTBEAT_INTERVAL_DAYS
+            except ValueError:
+                due = True
+        if due:
+            if webhook_url:
+                try:
+                    post_discord(webhook_url,
+                                 build_heartbeat_message(all_time_high, current_price, drawdown))
+                    state["last_heartbeat"] = today
+                    print("[info] 生存報告を Discord に通知しました")
+                except requests.RequestException as e:
+                    print(f"[error] 生存報告の送信に失敗: {e}")
+            else:
+                print("[warn] DISCORD_WEBHOOK_URL 未設定のため生存報告を送れません")
+    elif notified:
+        # 警報を送った回は生存報告タイマーもリセットしておく
+        state["last_heartbeat"] = today
 
     # --- state 保存（§5 step9） ---
     state["all_time_high"] = all_time_high
