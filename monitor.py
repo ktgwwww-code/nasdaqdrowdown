@@ -180,11 +180,39 @@ def build_failure_message(fail_count: int) -> str:
     )
 
 
+def build_test_message() -> str:
+    """通知疎通テスト用メッセージ。本番の警報と同じく @everyone を付け、
+    ロック画面/ミュート貫通を確認できるようにする（暴落ではないと明記）。"""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return (
+        "@everyone\n"
+        "🔔 **NASDAQ100 監視ツール 通知テスト**\n\n"
+        "これはテスト送信です。暴落ではありません。\n"
+        f"このメッセージ（@everyone 付き）がロック画面に届けば疎通OK。\n"
+        f"送信時刻: {now}"
+    )
+
+
 # --- メイン ---------------------------------------------------------------
 
 def run() -> int:
     webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     today = datetime.now(timezone.utc).date().isoformat()
+
+    # --- 通知テストモード（手動実行用）------------------------------------
+    # TEST_NOTIFY が真なら、相場判定も state 更新も一切せずテスト通知だけ送る。
+    # 疎通確認に使い、state.json は汚さない。
+    if os.environ.get("TEST_NOTIFY", "").strip().lower() in ("1", "true", "yes"):
+        if not webhook_url:
+            print("[error] DISCORD_WEBHOOK_URL 未設定のためテスト通知を送れません")
+            return 1
+        try:
+            post_discord(webhook_url, build_test_message())
+            print("[info] テスト通知を Discord に送信しました")
+            return 0
+        except requests.RequestException as e:
+            print(f"[error] テスト通知の送信に失敗: {e}")
+            return 1
 
     state = load_state()
 

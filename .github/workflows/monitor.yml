@@ -5,7 +5,12 @@ on:
     # UTC 0:00 = 日本 9:00（米国前営業日の引け後）。実行日基準で火〜土。
     # 終値が取れているかをテストして時刻は調整する。
     - cron: "0 0 * * 2-6"
-  workflow_dispatch: {}  # 手動実行も可能にする
+  workflow_dispatch:  # 手動実行も可能にする
+    inputs:
+      test_notify:
+        description: "Discord 通知の疎通テストを送る（相場判定/stateは変更しない）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write  # state.json をコミット＆プッシュするため
@@ -32,6 +37,7 @@ jobs:
       - name: Run monitor
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TEST_NOTIFY: ${{ inputs.test_notify }}
         run: python monitor.py
 
       - name: Commit state if changed
