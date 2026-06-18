@@ -1,8 +1,8 @@
 {
-  "all_time_high": 0.0,
+  "all_time_high": 30660.599609375,
   "fired_level": 0,
-  "last_run": null,
-  "last_price": null,
+  "last_run": "2026-06-18",
+  "last_price": 29670.947265625,
   "fail_count": 0,
   "fail_alerted": false
 }
